@@ -6,6 +6,35 @@ import java.util.List;
 
 public class SmaliToken extends SmaliNode {
 
+    public static SmaliToken lineCr() {
+        return createLineToken("\r");
+    }
+
+    public static SmaliToken lineCrlf() {
+        return createLineToken("\r\n");
+    }
+
+    public static SmaliToken lineLf() {
+        return createLineToken("\n");
+    }
+
+    public static SmaliToken line() {
+        return createLineToken(System.lineSeparator());
+    }
+
+    private static SmaliToken createLineToken(String str) {
+        switch (str) {
+            case "\r":
+                return new SmaliToken(str, "line.cr");
+            case "\n":
+                return new SmaliToken(str, "line.lf");
+            case "\r\n":
+                return new SmaliToken(str, "line.crlf");
+            default:
+                throw new IllegalArgumentException("Unsupported line text");
+        }
+    }
+
     private final String text;
     private final String tokenType;
 

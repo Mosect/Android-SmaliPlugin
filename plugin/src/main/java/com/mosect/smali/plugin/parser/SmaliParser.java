@@ -1,10 +1,38 @@
 package com.mosect.smali.plugin.parser;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class SmaliParser {
+
+    private final byte[] buffer = new byte[1024];
+
+    public SmaliParseResult<SmaliBlockNode> parseFileWithUtf8(File file) throws IOException {
+        return parseFile(file, StandardCharsets.UTF_8);
+    }
+
+    public SmaliParseResult<SmaliBlockNode> parseFile(File file, Charset charset) throws IOException {
+        try (FileInputStream fis = new FileInputStream(file);
+             ByteArrayOutputStream temp = new ByteArrayOutputStream(512)) {
+            int len;
+            while ((len = fis.read(buffer)) >= 0) {
+                if (len > 0) temp.write(buffer, 0, len);
+            }
+            String text = temp.toString(charset);
+            SmaliParseResult<List<SmaliToken>> tokensResult = parseTokens(text, 0, text.length());
+            if (!tokensResult.getErrors().isEmpty()) {
+                return new SmaliParseResult<>(null, tokensResult.getErrors());
+            }
+            return parseDocument(text, 0, text.length(), tokensResult.getResult());
+        }
+    }
 
     public SmaliParseResult<List<SmaliToken>> parseTokens(CharSequence text, int start, int end) {
         List<SmaliToken> result = new ArrayList<>();
@@ -20,7 +48,7 @@ public class SmaliParser {
                 offset = commentEnd;
             } else if (match(text, offset, end, "\r\n")) {
                 // 换行
-                result.add(new SmaliToken("\r\n", "line.crlf"));
+                result.add(SmaliToken.lineCrlf());
                 offset += 2;
             } else if (match(text, offset, end, "..")) {
                 // .. 运算符
@@ -42,11 +70,11 @@ public class SmaliParser {
                 char ch = text.charAt(offset);
                 switch (ch) {
                     case '\r':
-                        result.add(new SmaliToken("\r", "line.cr"));
+                        result.add(SmaliToken.lineCr());
                         ++offset;
                         break;
                     case '\n':
-                        result.add(new SmaliToken("\n", "line.lf"));
+                        result.add(SmaliToken.lineLf());
                         ++offset;
                         break;
                     case '=':
@@ -55,6 +83,7 @@ public class SmaliParser {
                     case '{':
                     case '}':
                     case ',':
+                    case ':':
                         result.add(new SmaliToken(String.valueOf(ch), "symbol"));
                         ++offset;
                         break;
@@ -415,6 +444,7 @@ public class SmaliParser {
                 case '{':
                 case '}':
                 case ',':
+                case ':':
                     return i;
             }
         }

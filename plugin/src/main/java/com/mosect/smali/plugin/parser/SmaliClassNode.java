@@ -13,6 +13,11 @@ public class SmaliClassNode extends SmaliBlockNode {
     }
 
     @Override
+    public String getId() {
+        return getClassName();
+    }
+
+    @Override
     public String getType() {
         return "class";
     }
