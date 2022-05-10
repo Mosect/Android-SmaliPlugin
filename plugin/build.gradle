@@ -11,12 +11,19 @@ dependencies {
     implementation localGroovy()
 
     // baksmali
-    implementation 'org.smali:baksmali:2.5.2'
+    implementation('org.smali:baksmali:2.5.2') {
+        exclude group: 'com.google.guava', module: 'guava'
+    }
     // smali
-    implementation 'org.smali:smali:2.5.2'
+    implementation('org.smali:smali:2.5.2') {
+        exclude group: 'com.google.guava', module: 'guava'
+    }
 
     testImplementation 'junit:junit:4.13.2'
 }
+
+sourceCompatibility=JavaVersion.VERSION_1_8
+targetCompatibility=JavaVersion.VERSION_1_8
 
 javadoc {
     options {

@@ -35,8 +35,8 @@ public class SmaliToken extends SmaliNode {
         }
     }
 
-    private final String text;
     private final String tokenType;
+    private final String text;
 
     public SmaliToken(String text, String tokenType) {
         this.text = text;
@@ -79,5 +79,13 @@ public class SmaliToken extends SmaliNode {
     @Override
     public String getType() {
         return "token";
+    }
+
+    @Override
+    public String toString() {
+        return "SmaliToken{" +
+                "tokenType='" + tokenType + '\'' +
+                ", text='" + text + '\'' +
+                '}';
     }
 }

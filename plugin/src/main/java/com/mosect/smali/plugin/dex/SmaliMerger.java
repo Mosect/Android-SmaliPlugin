@@ -4,6 +4,7 @@ import com.mosect.smali.plugin.parser.SmaliAnnotationNode;
 import com.mosect.smali.plugin.parser.SmaliBlockNode;
 import com.mosect.smali.plugin.parser.SmaliNode;
 import com.mosect.smali.plugin.parser.SmaliToken;
+import com.mosect.smali.plugin.util.IOUtils;
 import com.mosect.smali.plugin.util.TextUtils;
 
 import java.io.BufferedWriter;
@@ -21,9 +22,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 合并java和dex smali源码
+ * 将dex和smali源码合并
  */
-public class ClassesSourceMerger {
+public class SmaliMerger {
 
     private final static String DELETE = "com.mosect.smali.annotation.Delete";
     private final static String IGNORE = "com.mosect.smali.annotation.Ignore";
@@ -68,6 +69,10 @@ public class ClassesSourceMerger {
 
         for (Map.Entry<String, File> entry : javaSmaliFiles.entrySet()) {
             String className = entry.getKey();
+            if (className.startsWith("com.mosect.smali.annotation.")) {
+                continue;
+            }
+
             SmaliBlockNode javaBlockNode = parser.parse(entry.getValue());
             HashSet<String> javaAnnotations = getAnnotations(javaBlockNode);
             if (javaAnnotations.contains(DELETE)) {
@@ -87,6 +92,9 @@ public class ClassesSourceMerger {
                 mergeSmali(javaBlockNode, originalBlockNode, "field");
                 // 合并方法
                 mergeSmali(javaBlockNode, originalBlockNode, "method");
+                File file = writeSmaliFile(tempDir, className, originalBlockNode);
+                dexMaker.addSmaliFile(className, file);
+
             } else if (javaAnnotations.contains(ORIGINAL)) {
                 // 使用原本smali
                 DexMaker dexMaker = findDexMaker(dexMakerList, className);
@@ -97,7 +105,9 @@ public class ClassesSourceMerger {
                 // 替换
                 File file = writeSmaliFile(tempDir, className, javaBlockNode);
                 DexMaker dexMaker = findDexMaker(dexMakerList, className);
-                if (null == dexMaker) dexMaker = dexMakerList.get(0);
+                if (null == dexMaker) {
+                    dexMaker = dexMakerList.get(0);
+                }
                 dexMaker.addSmaliFile(className, file);
             } else if (!javaAnnotations.contains(IGNORE)) {
                 // 非忽略类
@@ -168,10 +178,7 @@ public class ClassesSourceMerger {
     private File writeSmaliFile(File dir, String className, SmaliBlockNode blockNode) throws IOException {
         removeAnnotations(blockNode);
         File file = ClassesSource.getSmaliFile(dir, className);
-        File parent = file.getParentFile();
-        if (!parent.exists() && !parent.mkdirs()) {
-            throw new IOException("Can't create directory: " + parent.getAbsolutePath());
-        }
+        IOUtils.initParent(file);
         StringBuilder builder = new StringBuilder();
         blockNode.append(builder);
         try (FileOutputStream fos = new FileOutputStream(file);

@@ -1,6 +1,7 @@
 package com.mosect.smali.plugin.dex;
 
 import com.mosect.smali.plugin.parser.SmaliBlockNode;
+import com.mosect.smali.plugin.util.IOUtils;
 import com.mosect.smali.plugin.util.TextUtils;
 
 import org.jf.smali.Smali;
@@ -53,6 +54,7 @@ public class DexMaker {
     }
 
     public boolean makeDex(File outFile) throws IOException {
+        IOUtils.initParent(outFile);
         SmaliOptions options = new SmaliOptions();
         options.apiLevel = apiLevel;
         options.jobs = 10;

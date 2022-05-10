@@ -8,37 +8,40 @@ public class SmaliMethodNode extends SmaliBlockNode {
     @Override
     public String getId() {
         if (getChildCount() > 0) {
-            int mode = 0;
             List<SmaliNode> nodes = getChildren();
             int end = -1;
             int start = -1;
+            int wordIndex = -1;
             _for:
-            for (int i = nodes.size() - 1; i >= 0; i--) {
+            for (int i = 0; i < nodes.size(); i++) {
                 SmaliNode node = nodes.get(i);
                 if ("token".equals(node.getType())) {
                     SmaliToken token = (SmaliToken) node;
-                    switch (mode) {
-                        case 0:
-                            if ("symbol".equals(token.getTokenType()) && ")".equals(token.getText())) {
-                                end = i + 1;
-                                mode = 1;
-                            }
+                    if (start < 0) {
+                        if ("symbol".equals(token.getTokenType()) && "(".equals(token.getText())) {
+                            if (wordIndex < 0) return null;
+                            start = wordIndex;
+                        } else if ("word".equals(token.getTokenType())) {
+                            wordIndex = i;
+                        }
+                    } else {
+                        if ("symbol".equals(token.getTokenType()) && ")".equals(token.getText())) {
+                            end = i + 1;
                             break;
-                        case 1:
-                            if ("symbol".equals(token.getTokenType()) && "(".equals(token.getText())) {
-                                mode = 2;
+                        } else {
+                            switch (token.getTokenType()) {
+                                case "comment":
+                                case "whitespace":
+                                case "word":
+                                    break;
+                                default:
+                                    break _for;
                             }
-                            break;
-                        case 2:
-                            if ("word".equals(token.getTokenType())) {
-                                start = i;
-                                break _for;
-                            }
-                            break;
+                        }
                     }
                 }
             }
-            if (end >= 0 && start >= 0) {
+            if (end >= 0) {
                 try {
                     StringBuilder builder = new StringBuilder(128);
                     for (int i = start; i < end; i++) {

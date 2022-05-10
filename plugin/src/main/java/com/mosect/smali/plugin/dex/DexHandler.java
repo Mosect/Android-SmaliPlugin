@@ -32,13 +32,14 @@ public class DexHandler {
         this.tempDir = tempDir;
     }
 
-    public void run() throws IOException, SmaliException {
-        if (originalSourceDirMap.isEmpty()) {
-            throw new IllegalArgumentException("originalSourceDir not set");
-        }
-        if (javaDexFiles.isEmpty()) {
-            throw new IllegalArgumentException("javaDexFile not set");
-        }
+    /**
+     * 执行dex处理任务
+     *
+     * @return 最终dex输出的目录
+     * @throws IOException    读写异常
+     * @throws SmaliException smali异常
+     */
+    public File run() throws IOException, SmaliException {
         if (null == tempDir) {
             throw new IllegalArgumentException("tempDir not set");
         }
@@ -46,18 +47,23 @@ public class DexHandler {
         File javaTempDir = new File(tempDir, "smali");
         javaTempDir.mkdirs();
 
-        System.out.println("DexHandler:dexDecode");
-        DexDecoder dexDecoder = new DexDecoder();
-        dexDecoder.setApiLevel(apiLevel);
-        for (File file : javaDexFiles) {
-            dexDecoder.addDexFile(file);
+        List<File> javaClassesDirs = null;
+        if (javaDexFiles.size() > 0) {
+            System.out.println("DexHandler:dexDecode");
+            DexDecoder dexDecoder = new DexDecoder();
+            dexDecoder.setApiLevel(apiLevel);
+            for (File file : javaDexFiles) {
+                dexDecoder.addDexFile(file);
+            }
+            javaClassesDirs = dexDecoder.decode(javaTempDir);
         }
-        List<File> javaClassesDirs = dexDecoder.decode(javaTempDir);
 
         // 创建java的classesSource
         ClassesSource javaClassesSource = new ClassesSource();
-        for (File dir : javaClassesDirs) {
-            javaClassesSource.addDir(dir);
+        if (null != javaClassesDirs) {
+            for (File dir : javaClassesDirs) {
+                javaClassesSource.addDir(dir);
+            }
         }
 
         // 构建dexMaker
@@ -78,11 +84,17 @@ public class DexHandler {
             System.out.println("DexHandler:dexMaker " + dexMaker.getName());
             dexMakerList.add(dexMaker);
         }
+        if (null == originalSourceDirMap.get(1)) {
+            // 不存在主dex构建器
+            DexMaker dexMaker = new DexMaker("classes");
+            dexMaker.setApiLevel(apiLevel);
+            dexMakerList.add(0, dexMaker);
+        }
 
         // 合并smali
         System.out.println("DexHandler:mergeSmali");
         File mergedTempDir = new File(tempDir, "merged");
-        ClassesSourceMerger merger = new ClassesSourceMerger();
+        SmaliMerger merger = new SmaliMerger();
         merger.setJavaSource(javaClassesSource);
         merger.setTempDir(mergedTempDir);
         for (DexMaker dexMaker : dexMakerList) {
@@ -97,5 +109,6 @@ public class DexHandler {
             System.out.printf("DexHandler:makeDex[%s] %s%n", dexMaker.getName(), file.getAbsolutePath());
             dexMaker.makeDex(file);
         }
+        return classesDir;
     }
 }

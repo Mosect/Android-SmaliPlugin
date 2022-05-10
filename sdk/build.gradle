@@ -3,6 +3,9 @@ plugins {
     id 'maven-publish'
 }
 
+sourceCompatibility=JavaVersion.VERSION_1_8
+targetCompatibility=JavaVersion.VERSION_1_8
+
 javadoc {
     options {
         //如果你的项目里面有中文注释的话，必须将格式设置为UTF-8，不然会出现乱码

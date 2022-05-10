@@ -8,19 +8,18 @@ public class SmaliFieldNode extends SmaliBlockNode {
     public String getId() {
         if (getChildCount() > 0) {
             List<SmaliNode> nodes = getChildren();
-            boolean start = false;
-            for (int i = nodes.size() - 1; i >= 0; i--) {
+            SmaliToken word = null;
+            for (int i = 0; i < nodes.size(); i++) {
                 SmaliNode node = nodes.get(i);
                 if ("token".equals(node.getType())) {
                     SmaliToken token = (SmaliToken) node;
-                    if (start) {
-                        if ("word".equals(token.getTokenType())) {
-                            return token.getText();
+                    if ("word".equals(token.getTokenType())) {
+                        word = token;
+                    } else if ("symbol".equals(token.getTokenType()) && ":".equals(token.getText())) {
+                        if (null != word) {
+                            return word.getText();
                         }
-                    } else {
-                        if ("symbol".equals(token.getTokenType()) && ":".equals(token.getText())) {
-                            start = true;
-                        }
+                        break;
                     }
                 }
             }

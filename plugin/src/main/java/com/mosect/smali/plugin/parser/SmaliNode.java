@@ -41,4 +41,9 @@ public abstract class SmaliNode {
     }
 
     public abstract String getType();
+
+    @Override
+    public String toString() {
+        return "SmaliNode{type=" + getType() + "}";
+    }
 }

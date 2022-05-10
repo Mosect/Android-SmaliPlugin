@@ -2,6 +2,7 @@ package com.mosect.smali.plugin;
 
 import static org.junit.Assert.assertEquals;
 
+import com.mosect.smali.plugin.dex.DexDecoder;
 import com.mosect.smali.plugin.dex.DexHandler;
 import com.mosect.smali.plugin.dex.DexMaker;
 import com.mosect.smali.plugin.parser.SmaliBlockNode;
@@ -16,6 +17,7 @@ import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -64,7 +66,21 @@ public class MainTest {
         deleteFile(tempFile);
         dexHandler.setTempDir(tempFile);
         dexHandler.setApiLevel(15);
-        dexHandler.run();
+        File dexDir = dexHandler.run();
+        File[] dexFiles = dexDir.listFiles(new FileFilter() {
+            @Override
+            public boolean accept(File file) {
+                return file.isFile() && file.getName().endsWith(".dex");
+            }
+        });
+        if (null != dexFiles) {
+            DexDecoder dexDecoder = new DexDecoder();
+            dexDecoder.setApiLevel(15);
+            for (File dexFile : dexFiles) {
+                dexDecoder.addDexFile(dexFile);
+            }
+            dexDecoder.decode(new File(dexDir.getParentFile(), "test"));
+        }
     }
 
     private void deleteFile(File file) {

@@ -25,11 +25,12 @@ public class SmaliParser {
             while ((len = fis.read(buffer)) >= 0) {
                 if (len > 0) temp.write(buffer, 0, len);
             }
-            String text = temp.toString(charset);
+            String text = temp.toString(charset.name());
             SmaliParseResult<List<SmaliToken>> tokensResult = parseTokens(text, 0, text.length());
             if (!tokensResult.getErrors().isEmpty()) {
                 return new SmaliParseResult<>(null, tokensResult.getErrors());
             }
+
             return parseDocument(text, 0, text.length(), tokensResult.getResult());
         }
     }
@@ -140,66 +141,53 @@ public class SmaliParser {
         }
 
         // 创建BlockNode
-        generateBlockNodes(rootBlockNode.getChildren(), 0, rootBlockNode.getChildCount(), rootBlockNode);
-        generateBlockNodes2(rootBlockNode);
-
-        // 调整块区域
-        adjustBlockNode(rootBlockNode);
+        List<SmaliNode> rootNodes = rootBlockNode.getChildren();
+        rootBlockNode.setChildren(new ArrayList<>());
+        generateBlockNodesWithEnd(rootNodes, 0, rootNodes.size(), rootBlockNode);
+        generateBlockNodesWithStart(rootBlockNode);
 
         return new SmaliParseResult<>(rootBlockNode, errors);
     }
 
-    protected void adjustBlockNode(SmaliBlockNode blockNode) {
-        if (blockNode.getChildCount() > 0) {
-            List<SmaliNode> children = blockNode.getChildren();
-            for (int i = 0; i < children.size(); i++) {
-                SmaliNode child = children.get(i);
-                if ("block".equals(child.getType())) {
-                    SmaliBlockNode childBlock = (SmaliBlockNode) child;
-                    SmaliBlockNode converted = convertBlockNode(childBlock);
-                    if (converted != childBlock) {
-                        children.set(i, converted);
-                    }
-                    adjustBlockNode(converted);
+    protected void generateBlockNodesWithEnd(List<SmaliNode> nodes, int start, int end, SmaliNode out) {
+        int offset = end - 1;
+        List<SmaliNode> children = new ArrayList<>();
+        while (offset >= start) {
+            SmaliNode node = nodes.get(offset);
+            if ("end".equals(node.getType())) {
+                SmaliEndNode endNode = (SmaliEndNode) node;
+                String blockName = endNode.getBlockName();
+                if (null == blockName) {
+                    children.add(node);
+                    --offset;
+                    continue;
                 }
+
+                int blockStartIndex = findBlockToken(nodes, start, offset, blockName);
+                SmaliBlockNode nextBlock;
+                if (blockStartIndex < 0) {
+                    nextBlock = createBlockNode("");
+                    generateBlockNodesWithEnd(nodes, start, offset, nextBlock);
+                } else {
+                    SmaliToken token = (SmaliToken) nodes.get(blockStartIndex);
+                    nextBlock = createBlockNode(token.getText());
+                    nextBlock.getChildren().add(token);
+                    generateBlockNodesWithEnd(nodes, blockStartIndex + 1, offset, nextBlock);
+                }
+
+                nextBlock.getChildren().add(nodes.get(offset));
+                children.add(nextBlock);
+                offset = blockStartIndex - 1;
+            } else {
+                children.add(node);
+                --offset;
             }
         }
+        Collections.reverse(children);
+        out.getChildren().addAll(children);
     }
 
-    protected SmaliBlockNode convertBlockNode(SmaliBlockNode blockNode) {
-        String name = blockNode.getBlockName();
-        if (null != name) {
-            switch (name) {
-                case ".class":
-                    return createClassNode(blockNode.getChildren(), "class");
-                case ".implement":
-                    return createClassNode(blockNode.getChildren(), "implement");
-                case ".enum":
-                    return createClassNode(blockNode.getChildren(), "enum");
-                case ".method":
-                    SmaliMethodNode methodNode = new SmaliMethodNode();
-                    methodNode.setChildren(blockNode.getChildren());
-                    return methodNode;
-                case ".field":
-                    SmaliFieldNode fieldNode = new SmaliFieldNode();
-                    fieldNode.setChildren(blockNode.getChildren());
-                    return fieldNode;
-                case ".annotation":
-                    SmaliAnnotationNode annotationNode = new SmaliAnnotationNode();
-                    annotationNode.setChildren(blockNode.getChildren());
-                    return annotationNode;
-            }
-        }
-        return blockNode;
-    }
-
-    protected SmaliClassNode createClassNode(List<SmaliNode> children, String classType) {
-        SmaliClassNode classNode = new SmaliClassNode(classType);
-        classNode.setChildren(children);
-        return classNode;
-    }
-
-    protected void generateBlockNodes2(SmaliBlockNode blockNode) {
+    protected void generateBlockNodesWithStart(SmaliBlockNode blockNode) {
         List<SmaliNode> nodes = blockNode.getChildren();
         List<SmaliNode> children = new ArrayList<>(nodes.size());
         int offset = 0;
@@ -207,14 +195,14 @@ public class SmaliParser {
             SmaliNode node = nodes.get(offset);
             if ("block".equals(node.getType())) {
                 SmaliBlockNode nextBlock = (SmaliBlockNode) node;
-                generateBlockNodes2(nextBlock);
+                generateBlockNodesWithStart(nextBlock);
                 children.add(nextBlock);
                 ++offset;
             } else if ("token".equals(node.getType())) {
                 SmaliToken token = (SmaliToken) node;
                 if ("block".equals(token.getTokenType())) {
                     int blockEnd = findBlockEnd(nodes, offset + 1);
-                    SmaliBlockNode nextBlock = new SmaliBlockNode();
+                    SmaliBlockNode nextBlock = createBlockNode(token.getText());
                     for (int i = offset; i < blockEnd; i++) {
                         nextBlock.getChildren().add(nodes.get(i));
                     }
@@ -260,37 +248,26 @@ public class SmaliParser {
         return nodes.size();
     }
 
-    protected void generateBlockNodes(List<SmaliNode> nodes, int start, int end, SmaliNode out) {
-        int offset = end - 1;
-        List<SmaliNode> children = new ArrayList<>();
-        while (offset >= start) {
-            SmaliNode node = nodes.get(offset);
-            if ("end".equals(node.getType())) {
-                SmaliEndNode endNode = (SmaliEndNode) node;
-                String blockName = endNode.getBlockName();
-                if (null == blockName) {
-                    children.add(node);
-                    --offset;
-                    continue;
-                }
-
-                int blockStartIndex = findBlockToken(nodes, start, offset, blockName);
-                if (blockStartIndex < 0) {
-                    blockStartIndex = start;
-                }
-                SmaliBlockNode nextBlock = new SmaliBlockNode();
-                nextBlock.getChildren().add(nodes.get(blockStartIndex));
-                generateBlockNodes(nodes, blockStartIndex + 1, offset, nextBlock);
-                nextBlock.getChildren().add(nodes.get(offset));
-                children.add(nextBlock);
-                offset = blockStartIndex - 1;
-            } else {
-                children.add(node);
-                --offset;
-            }
+    protected SmaliBlockNode createBlockNode(String type) {
+        SmaliBlockNode blockNode;
+        switch (type) {
+            case ".class":
+                blockNode = new SmaliClassNode();
+                break;
+            case ".method":
+                blockNode = new SmaliMethodNode();
+                break;
+            case ".field":
+                blockNode = new SmaliFieldNode();
+                break;
+            case ".annotation":
+                blockNode = new SmaliAnnotationNode();
+                break;
+            default:
+                blockNode = new SmaliBlockNode();
+                break;
         }
-        Collections.reverse(children);
-        out.getChildren().addAll(children);
+        return blockNode;
     }
 
     protected int findBlockToken(List<SmaliNode> nodes, int start, int end, String blockName) {

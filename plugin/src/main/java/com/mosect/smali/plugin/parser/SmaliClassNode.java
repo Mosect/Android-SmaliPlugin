@@ -2,14 +2,8 @@ package com.mosect.smali.plugin.parser;
 
 public class SmaliClassNode extends SmaliBlockNode {
 
-    private final String classType;
-
-    public SmaliClassNode(String classType) {
-        this.classType = classType;
-    }
-
     public String getClassType() {
-        return classType;
+        return null;
     }
 
     @Override
