@@ -14,6 +14,8 @@ public class DexHandler {
     private final HashSet<File> javaDexFiles = new HashSet<>();
     private File tempDir;
     private int apiLevel = 15;
+    private final List<File> operationFiles = new ArrayList<>();
+    private final List<File> positionFiles = new ArrayList<>();
 
     public void setApiLevel(int apiLevel) {
         this.apiLevel = apiLevel;
@@ -30,6 +32,14 @@ public class DexHandler {
 
     public void setTempDir(File tempDir) {
         this.tempDir = tempDir;
+    }
+
+    public void addOperationFile(File file) {
+        operationFiles.add(file);
+    }
+
+    public void addPositionFile(File file) {
+        positionFiles.add(file);
     }
 
     /**

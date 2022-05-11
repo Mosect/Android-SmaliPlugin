@@ -12,7 +12,14 @@ class SmaliPlugin implements Plugin<Project> {
         project.android.sourceSets.all {
             SmaliExtension extension = it.getExtensions().create('smali', SmaliExtension)
             extension.dirs.add(new File(project.projectDir, "src/${it.name}/smali"))
+            extension.addOperationFile(new File(project.projectDir, "src/${it.name}/class-operation.txt"))
+            extension.addPositionFile(new File(project.projectDir, "src/${it.name}/class-position.txt"))
+            if (it.name == 'main') {
+                extension.addOperationFile(new File(project.projectDir, 'class-operation.txt'))
+                extension.addPositionFile(new File(project.projectDir, 'class-position.txt'))
+            }
         }
+
         project.android.applicationVariants.all {
             Task task = it.packageApplication
             def variant = it
@@ -39,7 +46,27 @@ class SmaliPlugin implements Plugin<Project> {
                     println("DexHandler:addDexFile: ${it.absolutePath}")
                     dexHandler.addJavaDexFile(it)
                 }
+
+                int apiLevel = 15
+                List<File> classOperationFiles = []
+                List<File> classPositionFiles = []
                 variant.sourceSets.each {
+                    if (null != it.smali.apiLevel) {
+                        apiLevel = it.smali.apiLevel
+                    }
+
+                    it.smali.operationFiles.each { File file ->
+                        if (file.exists() && file.isFile()) {
+                            classOperationFiles.add(file)
+                        }
+                    }
+
+                    it.smali.positionFiles.each { File file ->
+                        if (file.exists() && file.isFile()) {
+                            classPositionFiles.add(file)
+                        }
+                    }
+
                     it.smali.dirs.each { File dir ->
                         def dirs = dir.listFiles(new FileFilter() {
                             @Override
@@ -61,6 +88,8 @@ class SmaliPlugin implements Plugin<Project> {
                         }
                     }
                 }
+                println("DexHandler:apiLevel ${apiLevel}")
+                dexHandler.apiLevel = apiLevel
                 println("DexHandler:run")
                 File outDir = dexHandler.run()
                 println("DexHandler:apply")

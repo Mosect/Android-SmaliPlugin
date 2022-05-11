@@ -36,6 +36,7 @@ public class SmaliMerger {
     private ClassesSource javaSource;
     private File tempDir;
     private final Map<String, DexMaker> dexMakerMap = new HashMap<>();
+    private final ClassOperation classOperation = new ClassOperation();
 
     public void setJavaSource(ClassesSource javaSource) {
         this.javaSource = javaSource;
@@ -50,6 +51,10 @@ public class SmaliMerger {
         if (null != old) {
             throw new IllegalArgumentException("Exist DexMaker: " + dexMaker.getName());
         }
+    }
+
+    public void addOperationFile(File file) throws IOException {
+        classOperation.load(file);
     }
 
     public void merge() throws IOException, SmaliException {
