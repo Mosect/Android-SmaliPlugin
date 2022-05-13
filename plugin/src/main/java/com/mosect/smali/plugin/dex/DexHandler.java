@@ -81,7 +81,7 @@ public class DexHandler {
         for (Map.Entry<Integer, HashSet<File>> entry : originalSourceDirMap.entrySet()) {
             int dexIndex = entry.getKey();
             String name = dexIndex == 1 ? "classes" : "classes" + dexIndex;
-            DexMaker dexMaker = new DexMaker(name);
+            DexMaker dexMaker = new DexMaker(dexIndex);
             ClassesSource classesSource = new ClassesSource();
             for (File dir : entry.getValue()) {
                 classesSource.addDir(dir);
@@ -96,7 +96,7 @@ public class DexHandler {
         }
         if (null == originalSourceDirMap.get(1)) {
             // 不存在主dex构建器
-            DexMaker dexMaker = new DexMaker("classes");
+            DexMaker dexMaker = new DexMaker(1);
             dexMaker.setApiLevel(apiLevel);
             dexMakerList.add(0, dexMaker);
         }
@@ -110,7 +110,19 @@ public class DexHandler {
         for (DexMaker dexMaker : dexMakerList) {
             merger.addDexMaker(dexMaker);
         }
-        merger.merge();
+        for (File file : operationFiles) {
+            if (file.isFile()) {
+                System.out.printf("DexHandler:addOperationFile {%s}%n", file.getAbsolutePath());
+                merger.addOperationFile(file);
+            }
+        }
+        for (File file : positionFiles) {
+            if (file.isFile()) {
+                System.out.printf("DexHandler:addPositionFile {%s}%n", file.getAbsolutePath());
+                merger.addPositionFile(file);
+            }
+        }
+        dexMakerList = merger.merge();
 
         // 构建dex
         File classesDir = new File(tempDir, "classes");

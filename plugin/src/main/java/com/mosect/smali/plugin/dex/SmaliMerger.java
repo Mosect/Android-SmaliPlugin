@@ -20,6 +20,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 将dex和smali源码合并
@@ -35,8 +36,9 @@ public class SmaliMerger {
     private final SimpleSmaliParser parser = new SimpleSmaliParser();
     private ClassesSource javaSource;
     private File tempDir;
-    private final Map<String, DexMaker> dexMakerMap = new HashMap<>();
+    private final Map<Integer, DexMaker> dexMakerMap = new HashMap<>();
     private final ClassOperation classOperation = new ClassOperation();
+    private final ClassPosition classPosition = new ClassPosition();
 
     public void setJavaSource(ClassesSource javaSource) {
         this.javaSource = javaSource;
@@ -47,7 +49,7 @@ public class SmaliMerger {
     }
 
     public void addDexMaker(DexMaker dexMaker) {
-        DexMaker old = dexMakerMap.put(dexMaker.getName(), dexMaker);
+        DexMaker old = dexMakerMap.put(dexMaker.getIndex(), dexMaker);
         if (null != old) {
             throw new IllegalArgumentException("Exist DexMaker: " + dexMaker.getName());
         }
@@ -57,7 +59,11 @@ public class SmaliMerger {
         classOperation.load(file);
     }
 
-    public void merge() throws IOException, SmaliException {
+    public void addPositionFile(File file) throws IOException {
+        classPosition.load(file);
+    }
+
+    public List<DexMaker> merge() throws IOException, SmaliException {
         if (null == javaSource) {
             throw new IllegalArgumentException("javaSource not set");
         }
@@ -70,7 +76,7 @@ public class SmaliMerger {
 
         Map<String, File> javaSmaliFiles = loadSmaliFiles(javaSource);
         List<DexMaker> dexMakerList = new ArrayList<>(dexMakerMap.values());
-        dexMakerList.sort(Comparator.comparing(DexMaker::getName));
+        dexMakerList.sort(Comparator.comparing(DexMaker::getIndex));
 
         for (Map.Entry<String, File> entry : javaSmaliFiles.entrySet()) {
             String className = entry.getKey();
@@ -80,33 +86,18 @@ public class SmaliMerger {
 
             SmaliBlockNode javaBlockNode = parser.parse(entry.getValue());
             HashSet<String> javaAnnotations = getAnnotations(javaBlockNode);
-            if (javaAnnotations.contains(DELETE)) {
+            if (classOperation.matchDelete(className) || javaAnnotations.contains(DELETE)) {
                 // 删除
                 for (DexMaker dexMaker : dexMakerList) {
                     dexMaker.removeSmaliFile(className);
                 }
-            } else if (javaAnnotations.contains(MERGE)) {
-                // 合并
-                DexMaker dexMaker = findDexMaker(dexMakerList, className);
-                if (null == dexMaker) {
-                    throw new SmaliException("MissingClass: " + className);
-                }
-                File originalFile = dexMaker.getSmaliFile(className);
-                SmaliBlockNode originalBlockNode = parser.parse(originalFile);
-                // 合并字段
-                mergeSmali(javaBlockNode, originalBlockNode, "field");
-                // 合并方法
-                mergeSmali(javaBlockNode, originalBlockNode, "method");
-                File file = writeSmaliFile(tempDir, className, originalBlockNode);
-                dexMaker.addSmaliFile(className, file);
-
-            } else if (javaAnnotations.contains(ORIGINAL)) {
+            } else if (classOperation.matchOriginal(className) || javaAnnotations.contains(ORIGINAL)) {
                 // 使用原本smali
                 DexMaker dexMaker = findDexMaker(dexMakerList, className);
                 if (null == dexMaker) {
                     throw new SmaliException("MissingClass: " + className);
                 }
-            } else if (javaAnnotations.contains(REPLACE)) {
+            } else if (classOperation.matchReplace(className) || javaAnnotations.contains(REPLACE)) {
                 // 替换
                 File file = writeSmaliFile(tempDir, className, javaBlockNode);
                 DexMaker dexMaker = findDexMaker(dexMakerList, className);
@@ -114,16 +105,80 @@ public class SmaliMerger {
                     dexMaker = dexMakerList.get(0);
                 }
                 dexMaker.addSmaliFile(className, file);
-            } else if (!javaAnnotations.contains(IGNORE)) {
-                // 非忽略类
-                File file = writeSmaliFile(tempDir, className, javaBlockNode);
-                DexMaker dexMaker = dexMakerList.get(0);
-                dexMaker.addSmaliFile(className, file);
+            } else {
+                MemberOperation memberOperation = classOperation.matchMerge(className);
+                if (null != memberOperation || javaAnnotations.contains(MERGE)) {
+                    // 合并
+                    DexMaker dexMaker = findDexMaker(dexMakerList, className);
+                    if (null == dexMaker) {
+                        throw new SmaliException("MissingClass: " + className);
+                    }
+                    File originalFile = dexMaker.getSmaliFile(className);
+                    SmaliBlockNode originalBlockNode = parser.parse(originalFile);
+                    // 合并字段
+                    mergeSmali(memberOperation, javaBlockNode, originalBlockNode, "field");
+                    // 合并方法
+                    mergeSmali(memberOperation, javaBlockNode, originalBlockNode, "method");
+                    File file = writeSmaliFile(tempDir, className, originalBlockNode);
+                    dexMaker.addSmaliFile(className, file);
+                } else if (!classOperation.matchIgnore(className) && !javaAnnotations.contains(IGNORE)) {
+                    // 非忽略类
+                    File file = writeSmaliFile(tempDir, className, javaBlockNode);
+                    DexMaker dexMaker = dexMakerList.get(0);
+                    dexMaker.addSmaliFile(className, file);
+                }
             }
         }
+
+        // change class dex index
+        DexMaker newDexMaker = null;
+        DexMaker endDexMaker = dexMakerList.get(dexMakerList.size() - 1);
+        int newDexMakerIndex = endDexMaker.getIndex() + 1;
+        for (DexMaker dexMaker : dexMakerList) {
+            Set<Map.Entry<String, File>> classSet = new HashSet<>(dexMaker.allClasses());
+            for (Map.Entry<String, File> classItem : classSet) {
+                String className = classItem.getKey();
+                File smaliFile = classItem.getValue();
+                ClassPosition.PositionItem pi = classPosition.find(dexMaker.getIndex(), className);
+                if (null != pi) {
+                    if (pi.getToIndex() == ClassPosition.INDEX_NEW) {
+                        // Move class to new dex
+                        if (null == newDexMaker) {
+                            newDexMaker = new DexMaker(newDexMakerIndex);
+                            dexMakerMap.put(newDexMakerIndex, newDexMaker);
+                        }
+                        newDexMaker.addSmaliFile(className, smaliFile);
+                        dexMaker.removeSmaliFile(className);
+                    } else if (pi.getToIndex() == ClassPosition.INDEX_END) {
+                        // Move class to end dex
+                        if (dexMaker.getIndex() != endDexMaker.getIndex()) {
+                            endDexMaker.addSmaliFile(className, smaliFile);
+                            dexMaker.removeSmaliFile(className);
+                        }
+                    } else if (pi.getToIndex() != dexMaker.getIndex()) {
+                        // Move class to particular dex
+                        DexMaker toDexMaker = dexMakerMap.get(pi.getToIndex());
+                        if (null == toDexMaker) {
+                            toDexMaker = new DexMaker(pi.getToIndex());
+                            dexMakerMap.put(pi.getToIndex(), toDexMaker);
+                        }
+                        toDexMaker.addSmaliFile(className, smaliFile);
+                        dexMaker.removeSmaliFile(className);
+                    }
+                }
+            }
+        }
+
+        dexMakerList = new ArrayList<>(dexMakerMap.values());
+        dexMakerList.sort(Comparator.comparing(DexMaker::getIndex));
+        return dexMakerList;
     }
 
-    private void mergeSmali(SmaliBlockNode javaBlockNode, SmaliBlockNode originalBlockNode, String type) throws SmaliException {
+    private void mergeSmali(
+            MemberOperation memberOperation,
+            SmaliBlockNode javaBlockNode,
+            SmaliBlockNode originalBlockNode,
+            String type) throws SmaliException {
         if (javaBlockNode.getChildCount() > 0) {
             List<SmaliBlockNode> deleteNodes = new ArrayList<>();
             for (SmaliNode childNode : javaBlockNode.getChildren()) {
@@ -134,16 +189,16 @@ public class SmaliMerger {
                         continue;
                     }
                     HashSet<String> annotations = getAnnotations(childBlockNode);
-                    if (annotations.contains(DELETE)) {
+                    if (memberOperation.matchDelete(type, id) || annotations.contains(DELETE)) {
                         SmaliBlockNode blockNode = findBlockNode(originalBlockNode, type, id);
                         deleteNodes.add(blockNode);
-                    } else if (annotations.contains(ORIGINAL)) {
+                    } else if (memberOperation.matchOriginal(type, id) || annotations.contains(ORIGINAL)) {
                         findBlockNode(originalBlockNode, type, id);
-                    } else if (annotations.contains(REPLACE)) {
+                    } else if (memberOperation.matchReplace(type, id) || annotations.contains(REPLACE)) {
                         SmaliBlockNode blockNode = findBlockNode(originalBlockNode, type, id);
                         int index = originalBlockNode.getChildren().indexOf(blockNode);
                         originalBlockNode.getChildren().set(index, childBlockNode);
-                    } else if (!annotations.contains(IGNORE)) {
+                    } else if (!memberOperation.matchIgnore(type, id) && !annotations.contains(IGNORE)) {
                         // 非忽略，直接添加
                         originalBlockNode.getChildren().add(childBlockNode);
                         originalBlockNode.getChildren().add(SmaliToken.line());

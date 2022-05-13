@@ -23,7 +23,17 @@ class SmaliPlugin implements Plugin<Project> {
         project.android.applicationVariants.all {
             Task task = it.packageApplication
             def variant = it
-            task.doFirst {
+            variant.sourceSets.each {
+                SmaliExtension smaliExtension = it.smali
+                task.inputs.files(smaliExtension.positionFiles)
+                task.inputs.files(smaliExtension.operationFiles)
+                smaliExtension.dirs.each {
+                    if (it.isDirectory()) {
+                        task.inputs.dir(it)
+                    }
+                }
+            }
+            it.packageApplication.doFirst {
                 List<File> dexFiles = []
                 task.inputs.files.each {
                     project.fileTree(it).each {
@@ -86,6 +96,12 @@ class SmaliPlugin implements Plugin<Project> {
                                 dexHandler.addOriginalSourceDir(dexIndex, it)
                             }
                         }
+                    }
+                    it.smali.operationFiles.each { File file ->
+                        dexHandler.addOperationFile(file)
+                    }
+                    it.smali.positionFiles.each { File file ->
+                        dexHandler.addPositionFile(file)
                     }
                 }
                 println("DexHandler:apiLevel ${apiLevel}")

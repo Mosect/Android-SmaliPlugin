@@ -13,16 +13,30 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class DexMaker {
 
+    private final int index;
     private final String name;
     private final Map<String, File> smaliFileMap = new HashMap<>();
     private final SimpleSmaliParser smaliParser = new SimpleSmaliParser();
     private int apiLevel = 15;
 
-    public DexMaker(String name) {
-        this.name = name;
+    public DexMaker(int index) {
+        if (index < 1 || index > 99) {
+            throw new IllegalArgumentException("Invalid dex index: " + index);
+        }
+        this.index = index;
+        if (index == 1) {
+            name = "classes";
+        } else {
+            name = "classes" + index;
+        }
+    }
+
+    public int getIndex() {
+        return index;
     }
 
     public String getName() {
@@ -51,6 +65,15 @@ public class DexMaker {
 
     public File removeSmaliFile(String className) {
         return smaliFileMap.remove(className);
+    }
+
+    /**
+     * Get all classes
+     *
+     * @return All classes, class name list
+     */
+    public Set<Map.Entry<String, File>> allClasses() {
+        return smaliFileMap.entrySet();
     }
 
     public boolean makeDex(File outFile) throws IOException {

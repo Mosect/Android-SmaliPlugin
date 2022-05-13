@@ -2,6 +2,7 @@ package com.mosect.smali.plugin;
 
 import static org.junit.Assert.assertEquals;
 
+import com.mosect.smali.plugin.dex.ClassOperation;
 import com.mosect.smali.plugin.dex.DexDecoder;
 import com.mosect.smali.plugin.dex.DexHandler;
 import com.mosect.smali.plugin.dex.DexMaker;
@@ -12,6 +13,7 @@ import com.mosect.smali.plugin.parser.SmaliParseResult;
 import com.mosect.smali.plugin.parser.SmaliParser;
 import com.mosect.smali.plugin.parser.SmaliToken;
 
+import org.gradle.internal.impldep.com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -20,12 +22,23 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class MainTest {
+
+    @Test
+    public void testClassOperation() throws Exception {
+        ClassOperation classOperation = new ClassOperation();
+        classOperation.load(new File("E:\\Temp\\2022051314\\class-operation.txt"));
+        Assert.assertTrue(classOperation.matchDelete("com.mosect.del2.A"));
+        Assert.assertFalse(classOperation.matchDelete("com.mosect.del2.A.B"));
+        Assert.assertTrue(classOperation.matchDelete("com.mosect.del.A"));
+        Assert.assertTrue(classOperation.matchDelete("com.mosect.del.A.B"));
+        Assert.assertFalse(classOperation.matchDelete("com.mosect.Data"));
+        Assert.assertTrue(classOperation.matchDelete("com.mosect.DeleteTest"));
+    }
 
     @Test
     public void testParseTokens() throws Exception {
@@ -48,7 +61,7 @@ public class MainTest {
         File dir = new File("E:\\Temp\\2022012118\\official-menglar-1.1.28-2022011810\\smali");
         List<File> smaliFiles = new ArrayList<>(128);
         listSmaliFiles(dir, smaliFiles);
-        DexMaker dexMaker = new DexMaker("classes");
+        DexMaker dexMaker = new DexMaker(1);
         for (File file : smaliFiles) {
             dexMaker.addSmaliFile(null, file);
         }
@@ -138,7 +151,7 @@ public class MainTest {
             while ((len = fis.read(buffer)) >= 0) {
                 temp.write(buffer, 0, len);
             }
-            return temp.toString(StandardCharsets.UTF_8);
+            return temp.toString("utf-8");
         }
     }
 

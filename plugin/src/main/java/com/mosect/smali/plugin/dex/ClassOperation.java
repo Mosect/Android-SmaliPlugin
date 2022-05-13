@@ -112,7 +112,7 @@ public class ClassOperation {
         HashSet<ClassItem> classItems = data.get(type);
         if (null != classItems) {
             for (ClassItem classItem : classItems) {
-                if (classItem.regexMatcher.matches(className)) {
+                if (classItem.matchClassName(className)) {
                     return classItem;
                 }
             }
@@ -122,11 +122,12 @@ public class ClassOperation {
 
     private static class ClassItem {
 
-        private final RegexMatcher regexMatcher;
+        private final String regex;
+        private RegexMatcher regexMatcher;
         private MemberOperation memberOperation;
 
         private ClassItem(String regex, boolean member) {
-            regexMatcher = new RegexMatcher(regex);
+            this.regex = regex;
             if (member) {
                 memberOperation = new MemberOperation();
             }
@@ -137,12 +138,17 @@ public class ClassOperation {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ClassItem classItem = (ClassItem) o;
-            return regexMatcher.equals(classItem.regexMatcher);
+            return regex.equals(classItem.regex);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(regexMatcher);
+            return Objects.hash(regex);
+        }
+
+        private boolean matchClassName(String className) {
+            if (null == regexMatcher) regexMatcher = new RegexMatcher(regex);
+            return regexMatcher.matches(className);
         }
     }
 }
