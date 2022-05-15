@@ -24,6 +24,16 @@ class SmaliPlugin implements Plugin<Project> {
         project.android.applicationVariants.all { variant ->
             // create make dex task for variant
             Task paTask = project.tasks.findByName(variant.packageApplicationProvider.name)
+            File tempDir = new File(project.buildDir, "smali/${variant.name}")
+            // add ext dex resources dir
+            File extDexDir = new File(tempDir, "ext")
+            variant.sourceSets.each {
+                if (it.name == 'main') {
+                    it.resources.srcDirs += extDexDir
+                }
+            }
+
+            // create task
             Task task = project.tasks.create("makeDex${variant.name.capitalize()}WithSmali", {
                 doLast {
                     List<File> dexFiles = []
@@ -42,7 +52,6 @@ class SmaliPlugin implements Plugin<Project> {
                     }
 
                     File dexDir = dexFiles.get(0).parentFile
-                    File tempDir = new File(project.buildDir, "smali")
                     project.delete(tempDir)
                     DexHandler dexHandler = new DexHandler()
                     dexHandler.tempDir = tempDir
@@ -103,16 +112,34 @@ class SmaliPlugin implements Plugin<Project> {
                     println("DexHandler:run")
                     File outDir = dexHandler.run()
                     println("DexHandler:apply")
+                    HashSet<String> originalDexNames = new HashSet<>()
                     dexFiles.each {
                         it.delete()
+                        originalDexNames.add(it.name)
+                    }
+                    List<File> originalDexList = []
+                    List<File> extDexList = []
+                    project.fileTree(outDir).each {
+                        if (originalDexNames.contains(it.name)) {
+                            originalDexList.add(it)
+                        } else {
+                            extDexList.add(it)
+                        }
                     }
                     project.copy {
-                        from(project.fileTree(outDir))
+                        from(originalDexList)
                         into(dexDir)
+                    }
+                    project.copy {
+                        from(extDexList)
+                        into(extDexDir)
                     }
                     println("DexHandler:ok")
                 }
             })
+
+            // set task outputs
+            task.outputs.dir(tempDir)
 
             // set task inputs
             variant.sourceSets.each {
