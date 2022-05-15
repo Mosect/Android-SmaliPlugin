@@ -23,7 +23,7 @@ class SmaliPlugin implements Plugin<Project> {
 
         project.android.applicationVariants.all { variant ->
             // create make dex task for variant
-            Task paTask = project.tasks.findByName(it.packageApplicationProvider.name)
+            Task paTask = project.tasks.findByName(variant.packageApplicationProvider.name)
             Task task = project.tasks.create("makeDex${variant.name.capitalize()}WithSmali", {
                 doLast {
                     List<File> dexFiles = []
