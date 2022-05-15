@@ -25,13 +25,8 @@ class SmaliPlugin implements Plugin<Project> {
             // create make dex task for variant
             Task paTask = project.tasks.findByName(variant.packageApplicationProvider.name)
             File tempDir = new File(project.buildDir, "smali/${variant.name}")
-            // add ext dex resources dir
-            File extDexDir = new File(tempDir, "ext")
-            variant.sourceSets.each {
-                if (it.name == 'main') {
-                    it.resources.srcDirs += extDexDir
-                }
-            }
+
+            File dexDir = new File(tempDir, 'dex')
 
             // create task
             Task task = project.tasks.create("makeDex${variant.name.capitalize()}WithSmali", {
@@ -51,7 +46,6 @@ class SmaliPlugin implements Plugin<Project> {
                         return
                     }
 
-                    File dexDir = dexFiles.get(0).parentFile
                     project.delete(tempDir)
                     DexHandler dexHandler = new DexHandler()
                     dexHandler.tempDir = tempDir
@@ -112,27 +106,13 @@ class SmaliPlugin implements Plugin<Project> {
                     println("DexHandler:run")
                     File outDir = dexHandler.run()
                     println("DexHandler:apply")
-                    HashSet<String> originalDexNames = new HashSet<>()
+                    // delete original dex
                     dexFiles.each {
                         it.delete()
-                        originalDexNames.add(it.name)
-                    }
-                    List<File> originalDexList = []
-                    List<File> extDexList = []
-                    project.fileTree(outDir).each {
-                        if (originalDexNames.contains(it.name)) {
-                            originalDexList.add(it)
-                        } else {
-                            extDexList.add(it)
-                        }
                     }
                     project.copy {
-                        from(originalDexList)
+                        from(outDir)
                         into(dexDir)
-                    }
-                    project.copy {
-                        from(extDexList)
-                        into(extDexDir)
                     }
                     println("DexHandler:ok")
                 }
@@ -154,6 +134,7 @@ class SmaliPlugin implements Plugin<Project> {
             }
 
             paTask.dependsOn(task)
+            paTask.dexFolders.add(dexDir)
             project.tasks.each {
                 def dexTask = it.name ==~ '^transformClasses\\S+$' ||
                         it.name ==~ '^\\S+Dex[A-Z]\\S*$' ||
