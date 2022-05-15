@@ -128,7 +128,12 @@ class SmaliPlugin implements Plugin<Project> {
 
             paTask.dependsOn(task)
             project.tasks.each {
-                if (it.name.matches('^\\S+Dex\\S+$') && it.name != task.name) {
+                def dexTask = it.name ==~ '^transformClasses\\S+$' ||
+                        it.name ==~ '^\\S+Dex[A-Z]\\S*$' ||
+                        it.name ==~ 'minify.+WithR8' ||
+                        it.name ==~ '^transformClasses\\S+'
+
+                if (dexTask && it.name != task.name) {
                     task.mustRunAfter(it.name)
                 }
             }
