@@ -134,7 +134,7 @@ class SmaliPlugin implements Plugin<Project> {
             }
 
             paTask.dependsOn(task)
-            paTask.dexFolders.add(dexDir)
+            paTask.dexFolders = dexDir
             project.tasks.each {
                 def dexTask = it.name ==~ '^transformClasses\\S+$' ||
                         it.name ==~ '^\\S+Dex[A-Z]\\S*$' ||
