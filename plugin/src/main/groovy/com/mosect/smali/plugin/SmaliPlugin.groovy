@@ -22,127 +22,159 @@ class SmaliPlugin implements Plugin<Project> {
         }
 
         project.android.applicationVariants.all { variant ->
-            // create make dex task for variant
-            Task paTask = project.tasks.findByName(variant.packageApplicationProvider.name)
-            File tempDir = new File(project.buildDir, "smali/${variant.name}")
+            List<Task> dexTasks = []
+            project.tasks.each {
+                def vn = it.properties.get('variantName')
+                if (vn == variant.name) {
+                    // variant task
+                    def dexTask = it.name ==~ '^transformDex.*Merger.*$' ||
+                            it.name ==~ '^minify.+WithR8.*$' ||
+                            it.name ==~ '^transformClasses.+WithR8.*$' ||
+                            it.name ==~ '^mergeDex.*$'
+                    if (dexTask) {
+                        // dex task
+                        dexTasks.add(it)
+                    }
+                }
+            }
+            dexTasks.each {
+                DexHandler dexHandler = null
+                File dexDir = null
+                List<File> originalDexFiles = []
 
-            File dexDir = new File(tempDir, 'dex')
+                // create smali task
+                Task smaliTask = project.tasks.create("${it.name}WithSmali")
+                smaliTask.setGroup('smali')
+                // set task outputs
+                File tempDir = new File(project.buildDir, "smali/${smaliTask.name}")
+                smaliTask.outputs.dir(tempDir)
+                // set task inputs
+                variant.sourceSets.each {
+                    SmaliExtension smaliExtension = it.smali
+                    smaliTask.inputs.files(smaliExtension.positionFiles)
+                    smaliTask.inputs.files(smaliExtension.operationFiles)
+                    smaliExtension.dirs.each {
+                        if (it.isDirectory()) {
+                            smaliTask.inputs.dir(it)
+                        }
+                    }
+                }
+                it.outputs.files.each {
+                    if (it.isDirectory()) {
+                        smaliTask.inputs.dir(it)
+                    } else {
+                        smaliTask.inputs.files(it)
+                    }
+                }
+                smaliTask.doLast {
+                    if (null != dexHandler) {
+                        println("DexHandler:run")
+                        File outDir = dexHandler.run()
+                        println("DexHandler:apply")
+                        // delete original dex
+                        originalDexFiles.each {
+                            it.delete()
+                        }
+                        project.copy {
+                            from(outDir)
+                            into(dexDir)
+                        }
+                        println("DexHandler:ok")
+                    }
+                }
 
-            // create task
-            Task task = project.tasks.create("makeDex${variant.name.capitalize()}WithSmali", {
-                doLast {
+                // run smali task after dex task
+                it.finalizedBy(smaliTask)
+
+                // add ext operate to dex task
+                it.doLast {
+                    // find dex files
                     List<File> dexFiles = []
-                    // list classes??.dex
-                    paTask.inputs.files.each {
+                    outputs.files.each {
                         project.fileTree(it).each {
-                            if (it.name ==~ '^classes([2-9][0-9]?)*\\.dex$') {
+                            if (it.name ==~ '^classes([0-9]{1,2})?\\.dex$') {
                                 dexFiles.add(it)
                             }
                         }
                     }
-                    if (!dexFiles) {
-                        // dex not found
-                        System.err.println('DexHandler:ignore: dexFiles not found')
-                        return
-                    }
-
-                    project.delete(tempDir)
-                    DexHandler dexHandler = new DexHandler()
-                    dexHandler.tempDir = tempDir
-                    dexFiles.each {
-                        println("DexHandler:addDexFile: ${it.absolutePath}")
-                        dexHandler.addJavaDexFile(it)
-                    }
-
-                    int apiLevel = 15
-                    List<File> classOperationFiles = []
-                    List<File> classPositionFiles = []
-                    variant.sourceSets.each {
-                        if (null != it.smali.apiLevel) {
-                            apiLevel = it.smali.apiLevel
+                    if (dexFiles.size() > 0) {
+                        println("DexHandler:configure")
+                        // exists dex file
+                        dexHandler = new DexHandler()
+                        dexHandler.tempDir = tempDir
+                        dexFiles.each {
+                            println("DexHandler:addDexFile: ${it.absolutePath}")
+                            originalDexFiles.add(it)
+                            dexHandler.addJavaDexFile(it)
                         }
-
-                        it.smali.operationFiles.each { File file ->
-                            if (file.exists() && file.isFile()) {
-                                classOperationFiles.add(file)
+                        // configure dexHandler
+                        int apiLevel = 15
+                        variant.sourceSets.each {
+                            if (null != it.smali.apiLevel) {
+                                apiLevel = it.smali.apiLevel
                             }
-                        }
 
-                        it.smali.positionFiles.each { File file ->
-                            if (file.exists() && file.isFile()) {
-                                classPositionFiles.add(file)
-                            }
-                        }
-
-                        it.smali.dirs.each { File dir ->
-                            def dirs = dir.listFiles(new FileFilter() {
-                                @Override
-                                boolean accept(File file) {
-                                    return file.isDirectory() && file.getName().matches('^classes([2-9][0-9]?)*$')
+                            it.smali.operationFiles.each { File file ->
+                                if (file.exists() && file.isFile()) {
+                                    dexHandler.addOperationFile(file)
                                 }
-                            })
-                            if (dirs) {
-                                dirs.each {
-                                    int dexIndex
-                                    if (it.name == 'classes') {
-                                        dexIndex = 1
-                                    } else {
-                                        dexIndex = Integer.parseInt(it.name.substring('classes'.length()))
+                            }
+
+                            it.smali.positionFiles.each { File file ->
+                                if (file.exists() && file.isFile()) {
+                                    dexHandler.addPositionFile(file)
+                                }
+                            }
+
+                            // find smali classes directory
+                            it.smali.dirs.each { File dir ->
+                                def dirs = dir.listFiles(new FileFilter() {
+                                    @Override
+                                    boolean accept(File file) {
+                                        return file.isDirectory() && file.getName().matches('^classes([2-9][0-9]?)*$')
                                     }
-                                    println("DexHandler:addSmaliDir: ${it.absolutePath}")
-                                    dexHandler.addOriginalSourceDir(dexIndex, it)
+                                })
+                                if (dirs) {
+                                    dirs.each {
+                                        int dexIndex
+                                        if (it.name == 'classes') {
+                                            dexIndex = 1
+                                        } else {
+                                            dexIndex = Integer.parseInt(it.name.substring('classes'.length()))
+                                        }
+                                        println("DexHandler:addSmaliDir: ${it.absolutePath}")
+                                        dexHandler.addOriginalSourceDir(dexIndex, it)
+                                    }
                                 }
                             }
                         }
-                        it.smali.operationFiles.each { File file ->
-                            dexHandler.addOperationFile(file)
+                        println("DexHandler:apiLevel ${apiLevel}")
+                        dexHandler.apiLevel = apiLevel
+                        dexDir = dexFiles[0].parentFile
+                        // find all classes
+                        HashSet<String> classes = new HashSet<>()
+                        int maxClassesIndex = 1
+                        dexHandler.allOriginalSourceClasses().each {
+                            if (it == 1) {
+                                classes.add('classes.dex')
+                            } else {
+                                classes.add("classes${it}.dex")
+                            }
+                            if (it > maxClassesIndex) maxClassesIndex = it
                         }
-                        it.smali.positionFiles.each { File file ->
-                            dexHandler.addPositionFile(file)
+                        classes.add('classes.dex')
+                        classes.add("classes${maxClassesIndex + 1}.dex")
+                        // create classes if not exists
+                        classes.each {
+                            // create empty file
+                            File file = new File(dexDir, it)
+                            if (!file.exists()) {
+                                println("DexHandler:createEmptyDex ${file.getAbsolutePath()}")
+                                file.text = ''
+                                originalDexFiles.add(file)
+                            }
                         }
                     }
-                    println("DexHandler:apiLevel ${apiLevel}")
-                    dexHandler.apiLevel = apiLevel
-                    println("DexHandler:run")
-                    File outDir = dexHandler.run()
-                    println("DexHandler:apply")
-                    // delete original dex
-                    dexFiles.each {
-                        it.delete()
-                    }
-                    project.copy {
-                        from(outDir)
-                        into(dexDir)
-                    }
-                    println("DexHandler:ok")
-                }
-            })
-
-            // set task outputs
-            task.outputs.dir(tempDir)
-
-            // set task inputs
-            variant.sourceSets.each {
-                SmaliExtension smaliExtension = it.smali
-                task.inputs.files(smaliExtension.positionFiles)
-                task.inputs.files(smaliExtension.operationFiles)
-                smaliExtension.dirs.each {
-                    if (it.isDirectory()) {
-                        task.inputs.dir(it)
-                    }
-                }
-            }
-
-            paTask.dependsOn(task)
-            paTask.dexFolders = dexDir
-            project.tasks.each {
-                def dexTask = it.name ==~ '^transformClasses\\S+$' ||
-                        it.name ==~ '^\\S+Dex[A-Z]\\S*$' ||
-                        it.name ==~ 'minify.+WithR8' ||
-                        it.name ==~ '^transformClasses\\S+'
-
-                if (dexTask && it.name != task.name) {
-                    task.mustRunAfter(it.name)
                 }
             }
         }

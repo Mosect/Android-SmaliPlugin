@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class DexHandler {
 
@@ -24,6 +25,10 @@ public class DexHandler {
     public void addOriginalSourceDir(int dexIndex, File dir) {
         HashSet<File> files = originalSourceDirMap.computeIfAbsent(dexIndex, k -> new HashSet<>());
         files.add(dir);
+    }
+
+    public Set<Integer> allOriginalSourceClasses() {
+        return originalSourceDirMap.keySet();
     }
 
     public void addJavaDexFile(File dexFile) {
