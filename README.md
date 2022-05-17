@@ -214,6 +214,11 @@ merge		com.mosect.Test
 * 类路径格式：class_path。class_path可以包含 \*或者\*\* 来匹配多个类，使用java格式类路径
 
 # 版本更新记录
+## 1.1.1-b10
+```
+1. 兼容 AGP 3.3.0-7.2
+2. 兼容MultiDex和R8
+```
 ## 1.1.1-b1
 ```
 beta测试版本
