@@ -189,16 +189,16 @@ public class SmaliMerger {
                         continue;
                     }
                     HashSet<String> annotations = getAnnotations(childBlockNode);
-                    if (memberOperation.matchDelete(type, id) || annotations.contains(DELETE)) {
+                    if ((null != memberOperation && memberOperation.matchDelete(type, id)) || annotations.contains(DELETE)) {
                         SmaliBlockNode blockNode = findBlockNode(originalBlockNode, type, id);
                         deleteNodes.add(blockNode);
-                    } else if (memberOperation.matchOriginal(type, id) || annotations.contains(ORIGINAL)) {
+                    } else if ((null != memberOperation && memberOperation.matchOriginal(type, id)) || annotations.contains(ORIGINAL)) {
                         findBlockNode(originalBlockNode, type, id);
-                    } else if (memberOperation.matchReplace(type, id) || annotations.contains(REPLACE)) {
+                    } else if ((null != memberOperation && memberOperation.matchReplace(type, id)) || annotations.contains(REPLACE)) {
                         SmaliBlockNode blockNode = findBlockNode(originalBlockNode, type, id);
                         int index = originalBlockNode.getChildren().indexOf(blockNode);
                         originalBlockNode.getChildren().set(index, childBlockNode);
-                    } else if (!memberOperation.matchIgnore(type, id) && !annotations.contains(IGNORE)) {
+                    } else if ((null != memberOperation && !memberOperation.matchIgnore(type, id)) && !annotations.contains(IGNORE)) {
                         // 非忽略，直接添加
                         originalBlockNode.getChildren().add(childBlockNode);
                         originalBlockNode.getChildren().add(SmaliToken.line());
