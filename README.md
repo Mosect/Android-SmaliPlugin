@@ -32,7 +32,7 @@ buildscript {
         // 自己的com.android.tools.build:gradle插件，支持3.4.0+
         // classpath "com.android.tools.build:gradle:3.4.0"
         // Android-SmaliPlugin
-        classpath 'com.github.Mosect:Android-SmaliPlugin:1.1.1-b1'
+        classpath 'com.github.Mosect:Android-SmaliPlugin:1.1.1-b10'
     }
 }
 ```
