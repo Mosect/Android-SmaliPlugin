@@ -32,7 +32,8 @@ class SmaliPlugin implements Plugin<Project> {
                         def dexTask = it.name ==~ '^transformDex.*Merger.*$' ||
                                 it.name ==~ '^minify.+WithR8.*$' ||
                                 it.name ==~ '^transformClasses.+WithR8.*$' ||
-                                it.name ==~ '^mergeDex.*$'
+                                it.name ==~ '^mergeDex.*$' ||
+                                it.name ==~ '^mergeProjectDex.*$'
                         if (dexTask) {
                             // dex task
                             dexTasks.add(it)
