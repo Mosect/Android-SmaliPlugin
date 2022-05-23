@@ -56,6 +56,8 @@ class SmaliPlugin implements Plugin<Project> {
                         }
                     }
                     task.doLast {
+                        project.delete(tempDir)
+
                         // find dex files
                         List<File> dexFiles = []
                         def dexFileInfoList = []
@@ -90,8 +92,6 @@ class SmaliPlugin implements Plugin<Project> {
                             return
                         }
 
-                        project.delete(tempDir)
-                        tempDir.mkdirs()
                         // exists dex file
                         DexHandler dexHandler = new DexHandler()
                         dexHandler.tempDir = tempDir
