@@ -58,18 +58,40 @@ class SmaliPlugin implements Plugin<Project> {
                     task.doLast {
                         // find dex files
                         List<File> dexFiles = []
+                        def dexFileInfoList = []
                         outputs.files.each {
                             project.fileTree(it).each {
                                 if (it.name ==~ '^classes([0-9]{1,2})?\\.dex$') {
-                                    dexFiles.add(it)
+                                    def str = it.name.substring(7, it.name.length() - 4)
+                                    int index = 1
+                                    if (str.length() > 0) {
+                                        index = Integer.parseInt(str)
+                                    }
+                                    dexFileInfoList.add([
+                                            index: index,
+                                            file : it
+                                    ])
                                 }
                             }
                         }
+                        dexFileInfoList.sort(new Comparator() {
+                            @Override
+                            int compare(Object o1, Object o2) {
+                                return o1.index - o2.index
+                            }
+                        })
+
+                        dexFileInfoList.each {
+                            dexFiles.add(it.file)
+                        }
+
                         if (dexFiles.isEmpty()) {
                             System.err.println("DexHandler:skip dex file not found")
                             return
                         }
 
+                        project.delete(tempDir)
+                        tempDir.mkdirs()
                         // exists dex file
                         DexHandler dexHandler = new DexHandler()
                         dexHandler.tempDir = tempDir

@@ -85,7 +85,6 @@ public class DexHandler {
         List<DexMaker> dexMakerList = new ArrayList<>();
         for (Map.Entry<Integer, HashSet<File>> entry : originalSourceDirMap.entrySet()) {
             int dexIndex = entry.getKey();
-            String name = dexIndex == 1 ? "classes" : "classes" + dexIndex;
             DexMaker dexMaker = new DexMaker(dexIndex);
             ClassesSource classesSource = new ClassesSource();
             for (File dir : entry.getValue()) {

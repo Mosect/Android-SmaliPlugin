@@ -293,12 +293,7 @@ public class SmaliMerger {
         for (ClassesSource.SmaliFileInfo fileInfo : list) {
             File old = map.put(fileInfo.getClassName(), fileInfo.getFile());
             if (null != old) {
-                throw new IOException(String.format(
-                        "MultipleClass[%s]: %s, %s",
-                        fileInfo.getClassName(),
-                        fileInfo.getFile().getAbsolutePath(),
-                        old.getAbsolutePath()
-                ));
+                System.err.printf("ReplaceClasses: %s >>> %s%n", fileInfo.getFile(), old);
             }
         }
         return map;
