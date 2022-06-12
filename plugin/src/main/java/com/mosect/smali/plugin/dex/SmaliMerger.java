@@ -27,6 +27,7 @@ import java.util.Set;
  */
 public class SmaliMerger {
 
+    private final static String COPY = "com.mosect.smali.annotation.Copy";
     private final static String DELETE = "com.mosect.smali.annotation.Delete";
     private final static String IGNORE = "com.mosect.smali.annotation.Ignore";
     private final static String MERGE = "com.mosect.smali.annotation.Merge";
@@ -85,19 +86,19 @@ public class SmaliMerger {
             }
 
             SmaliBlockNode javaBlockNode = parser.parse(entry.getValue());
-            HashSet<String> javaAnnotations = getAnnotations(javaBlockNode);
-            if (classOperation.matchDelete(className) || javaAnnotations.contains(DELETE)) {
+            Map<String, SmaliAnnotationNode> javaAnnotations = getAnnotations(javaBlockNode);
+            if (classOperation.matchDelete(className) || javaAnnotations.containsKey(DELETE)) {
                 // 删除
                 for (DexMaker dexMaker : dexMakerList) {
                     dexMaker.removeSmaliFile(className);
                 }
-            } else if (classOperation.matchOriginal(className) || javaAnnotations.contains(ORIGINAL)) {
+            } else if (classOperation.matchOriginal(className) || javaAnnotations.containsKey(ORIGINAL)) {
                 // 使用原本smali
                 DexMaker dexMaker = findDexMaker(dexMakerList, className);
                 if (null == dexMaker) {
                     throw new SmaliException("MissingClass: " + className);
                 }
-            } else if (classOperation.matchReplace(className) || javaAnnotations.contains(REPLACE)) {
+            } else if (classOperation.matchReplace(className) || javaAnnotations.containsKey(REPLACE)) {
                 // 替换
                 File file = writeSmaliFile(tempDir, className, javaBlockNode);
                 DexMaker dexMaker = findDexMaker(dexMakerList, className);
@@ -107,7 +108,7 @@ public class SmaliMerger {
                 dexMaker.addSmaliFile(className, file);
             } else {
                 MemberOperation memberOperation = classOperation.matchMerge(className);
-                if (null != memberOperation || javaAnnotations.contains(MERGE)) {
+                if (null != memberOperation || javaAnnotations.containsKey(MERGE)) {
                     // 合并
                     DexMaker dexMaker = findDexMaker(dexMakerList, className);
                     if (null == dexMaker) {
@@ -121,7 +122,7 @@ public class SmaliMerger {
                     mergeSmali(memberOperation, javaBlockNode, originalBlockNode, "method");
                     File file = writeSmaliFile(tempDir, className, originalBlockNode);
                     dexMaker.addSmaliFile(className, file);
-                } else if (!classOperation.matchIgnore(className) && !javaAnnotations.contains(IGNORE)) {
+                } else if (!classOperation.matchIgnore(className) && !javaAnnotations.containsKey(IGNORE)) {
                     // 非忽略类
                     File file = writeSmaliFile(tempDir, className, javaBlockNode);
                     DexMaker dexMaker = dexMakerList.get(0);
@@ -181,6 +182,7 @@ public class SmaliMerger {
             String type) throws SmaliException {
         if (javaBlockNode.getChildCount() > 0) {
             List<SmaliBlockNode> deleteNodes = new ArrayList<>();
+            List<SmaliBlockNode> addNodes = new ArrayList<>();
             for (SmaliNode childNode : javaBlockNode.getChildren()) {
                 if (Objects.equals(childNode.getType(), type)) {
                     SmaliBlockNode childBlockNode = (SmaliBlockNode) childNode;
@@ -188,17 +190,33 @@ public class SmaliMerger {
                     if (TextUtils.isEmpty(id)) {
                         continue;
                     }
-                    HashSet<String> annotations = getAnnotations(childBlockNode);
-                    if ((null != memberOperation && memberOperation.matchDelete(type, id)) || annotations.contains(DELETE)) {
+                    Map<String, SmaliAnnotationNode> annotations = getAnnotations(childBlockNode);
+                    if ("method".equals(type) && annotations.containsKey(COPY)) {
+                        // 执行复制操作
+                        SmaliAnnotationNode copyAnnotation = annotations.get(COPY);
+                        CopyValueMatcher matcher = new CopyValueMatcher();
+                        if (copyAnnotation.match(matcher)) {
+                            String dstName = matcher.getValue();
+                            SmaliBlockNode blockNode = findBlockNode(originalBlockNode, type, id);
+                            SmaliBlockNode copy = blockNode.copy();
+                            MethodNameMatcher methodNameMatcher = new MethodNameMatcher();
+                            if (copy.match(methodNameMatcher)) {
+                                SmaliToken nameToken = new SmaliToken(dstName, "word");
+                                copy.getChildren().set(methodNameMatcher.getNameNodeIndex(), nameToken);
+                                addNodes.add(copy);
+                            }
+                        }
+                    }
+                    if ((null != memberOperation && memberOperation.matchDelete(type, id)) || annotations.containsKey(DELETE)) {
                         SmaliBlockNode blockNode = findBlockNode(originalBlockNode, type, id);
                         deleteNodes.add(blockNode);
-                    } else if ((null != memberOperation && memberOperation.matchOriginal(type, id)) || annotations.contains(ORIGINAL)) {
+                    } else if ((null != memberOperation && memberOperation.matchOriginal(type, id)) || annotations.containsKey(ORIGINAL)) {
                         findBlockNode(originalBlockNode, type, id);
-                    } else if ((null != memberOperation && memberOperation.matchReplace(type, id)) || annotations.contains(REPLACE)) {
+                    } else if ((null != memberOperation && memberOperation.matchReplace(type, id)) || annotations.containsKey(REPLACE)) {
                         SmaliBlockNode blockNode = findBlockNode(originalBlockNode, type, id);
                         int index = originalBlockNode.getChildren().indexOf(blockNode);
                         originalBlockNode.getChildren().set(index, childBlockNode);
-                    } else if ((null != memberOperation && !memberOperation.matchIgnore(type, id)) && !annotations.contains(IGNORE)) {
+                    } else if ((null != memberOperation && !memberOperation.matchIgnore(type, id)) && !annotations.containsKey(IGNORE)) {
                         // 非忽略，直接添加
                         originalBlockNode.getChildren().add(childBlockNode);
                         originalBlockNode.getChildren().add(SmaliToken.line());
@@ -207,6 +225,9 @@ public class SmaliMerger {
             }
             if (!deleteNodes.isEmpty()) {
                 originalBlockNode.getChildren().removeAll(deleteNodes);
+            }
+            if (!addNodes.isEmpty()) {
+                originalBlockNode.getChildren().addAll(addNodes);
             }
         }
     }
@@ -249,15 +270,15 @@ public class SmaliMerger {
         return file;
     }
 
-    protected HashSet<String> getAnnotations(SmaliBlockNode blockNode) {
-        HashSet<String> result = new HashSet<>();
+    protected Map<String, SmaliAnnotationNode> getAnnotations(SmaliBlockNode blockNode) {
+        Map<String, SmaliAnnotationNode> result = new HashMap<>();
         if (blockNode.getChildCount() > 0) {
             for (SmaliNode node : blockNode.getChildren()) {
                 if ("annotation".equals(node.getType())) {
                     SmaliAnnotationNode annotationNode = (SmaliAnnotationNode) node;
                     String className = annotationNode.getClassName();
                     if (!TextUtils.isEmpty(className) && className.startsWith("com.mosect.smali.annotation.")) {
-                        result.add(className);
+                        result.put(className, annotationNode);
                     }
                 }
             }

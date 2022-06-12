@@ -62,6 +62,11 @@ public class SmaliToken extends SmaliNode {
     }
 
     @Override
+    public SmaliNode copy() {
+        return new SmaliToken(text, tokenType);
+    }
+
+    @Override
     public List<SmaliNode> getChildren() {
         return Collections.emptyList();
     }

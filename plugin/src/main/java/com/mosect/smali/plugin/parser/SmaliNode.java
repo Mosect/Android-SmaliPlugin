@@ -40,7 +40,36 @@ public abstract class SmaliNode {
         return len;
     }
 
+    public abstract SmaliNode copy();
+
     public abstract String getType();
+
+    public boolean match(SmaliNodeMatcher matcher) {
+        for (int i = 0; i < getChildCount(); i++) {
+            matcher.reset();
+            SmaliNode child = getChildren().get(i);
+            if (isIgnoreNode(child)) continue;
+            for (int j = i; j < getChildCount(); j++) {
+                SmaliNode cur = getChildren().get(j);
+                if (isIgnoreNode(cur)) continue;
+                int matchValue = matcher.match(this, cur, j);
+                if (matchValue == 0) break;
+                if (matchValue == 2) {
+                    // 匹配成功
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    protected boolean isIgnoreNode(SmaliNode node) {
+        if ("token".equals(node.getType())) {
+            SmaliToken token = (SmaliToken) node;
+            return "comment".equals(token.getTokenType()) || "whitespace".equals(token.getTokenType());
+        }
+        return false;
+    }
 
     @Override
     public String toString() {

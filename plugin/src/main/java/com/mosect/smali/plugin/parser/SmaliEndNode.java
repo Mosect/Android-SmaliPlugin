@@ -24,6 +24,17 @@ public class SmaliEndNode extends SmaliNode {
     }
 
     @Override
+    public SmaliEndNode copy() {
+        SmaliEndNode node = new SmaliEndNode();
+        if (getChildCount() > 0) {
+            for (SmaliNode child : getChildren()) {
+                node.getChildren().add(child.copy());
+            }
+        }
+        return node;
+    }
+
+    @Override
     public String getType() {
         return "end";
     }

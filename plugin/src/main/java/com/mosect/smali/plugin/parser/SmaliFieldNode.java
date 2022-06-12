@@ -5,6 +5,11 @@ import java.util.List;
 public class SmaliFieldNode extends SmaliBlockNode {
 
     @Override
+    public SmaliFieldNode createEmpty() {
+        return new SmaliFieldNode();
+    }
+
+    @Override
     public String getId() {
         if (getChildCount() > 0) {
             List<SmaliNode> nodes = getChildren();

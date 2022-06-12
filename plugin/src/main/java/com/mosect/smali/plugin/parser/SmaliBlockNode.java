@@ -96,6 +96,21 @@ public class SmaliBlockNode extends SmaliNode {
     }
 
     @Override
+    public SmaliBlockNode copy() {
+        SmaliBlockNode node = createEmpty();
+        if (getChildCount() > 0) {
+            for (SmaliNode child : getChildren()) {
+                node.getChildren().add(child.copy());
+            }
+        }
+        return node;
+    }
+
+    public SmaliBlockNode createEmpty() {
+        return new SmaliBlockNode();
+    }
+
+    @Override
     public String getType() {
         return "block";
     }

@@ -32,7 +32,7 @@ buildscript {
         // 自己的com.android.tools.build:gradle插件，支持3.4.0+
         // classpath "com.android.tools.build:gradle:3.4.0"
         // Android-SmaliPlugin
-        classpath 'com.github.Mosect:Android-SmaliPlugin:1.1.1-b11'
+        classpath 'com.github.Mosect:Android-SmaliPlugin:1.2.0-b1'
     }
 }
 ```
@@ -142,27 +142,30 @@ delete  2:com.mosect.MyTest
 在Android app模块build.gradle中，引用sdk：
 ```
 dependencies {
-    implementation 'com.github.Mosect:Android-SmaliSdk:1.1.1-b1'
+    implementation 'com.github.Mosect:Android-SmaliSdk:1.2.0'
 }
 ```
-在包com.mosect.smali.annotation下提供5种注解，此注解不会被打包进dex，用于Android-SmaliPlugin处理，以下为注解说明（按处理优先级）：
+在包com.mosect.smali.annotation下提供几种注解，此注解不会被打包进dex，用于Android-SmaliPlugin处理，以下为注解说明（按处理优先级）：
 
-### @Delete 注解
+### Copy 注解
+将方法复制成指定名称方法，支持与其他注解混用，此注解只支持方法
+
+### Delete 注解
 删除smali和java源码中的类、方法或字段，
 
-### @Original 注解
+### Original 注解
 使用smali源码中的类、方法或字段，即忽略java中的类、方法或字段
 
-### @Replace 注解
+### Replace 注解
 替换smali源码中的类、方法或字段，即只使用java中的类、方法或字段
 
-### @Merge 注解
+### Merge 注解
 合并java和smali类
 
-### @Ignore 注解
+### Ignore 注解
 忽略java中类、方法或字段，即java中的类、方法或字段不会打包进dex
 
-java调用smali源码，需要在java中创建对应的类，然后使用@Ignore注解即可。这5个注解可以相互配合，组成所需的开发需求
+java调用smali源码，需要在java中创建对应的类，然后使用@Ignore注解即可。这些注解可以相互配合，组成所需的开发需求
 
 ## 使用class-operation.txt更改java与smali合并规则
 除了使用注解之外，还可以使用class-operation.txt文件规定合并规则，其配置和class-position.txt类似。
@@ -214,6 +217,10 @@ merge		com.mosect.Test
 * 类路径格式：class_path。class_path可以包含 \*或者\*\* 来匹配多个类，使用java格式类路径
 
 # 版本更新记录
+## 1.2.0-b1
+```
+增加Copy注解支持
+```
 
 ## 1.1.2（稳定）
 ```

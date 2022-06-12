@@ -7,6 +7,11 @@ public class SmaliClassNode extends SmaliBlockNode {
     }
 
     @Override
+    public SmaliClassNode createEmpty() {
+        return new SmaliClassNode();
+    }
+
+    @Override
     public String getId() {
         return getClassName();
     }

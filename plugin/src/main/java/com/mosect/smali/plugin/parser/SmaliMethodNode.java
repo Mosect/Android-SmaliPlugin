@@ -6,6 +6,11 @@ import java.util.List;
 public class SmaliMethodNode extends SmaliBlockNode {
 
     @Override
+    public SmaliMethodNode createEmpty() {
+        return new SmaliMethodNode();
+    }
+
+    @Override
     public String getId() {
         if (getChildCount() > 0) {
             List<SmaliNode> nodes = getChildren();
